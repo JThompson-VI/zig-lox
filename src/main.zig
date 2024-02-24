@@ -1,24 +1,61 @@
 const std = @import("std");
+const fs = std.fs;
 
 fn dbg(comptime x: []const u8) void {
     std.debug.print(x, .{});
     std.debug.print("\n", .{});
 }
 
-pub fn main() !void {
-    const std_out_file = std.io.getStdOut();
-    var bw = std.io.bufferedWriter(std_out_file.writer());
-    const std_out = bw.writer();
-
-    dbg("dbg is working");
-    try std_out.print("Hello World\n", .{});
-
-    try bw.flush();
+fn run(source: []const u8) void {
+    std.debug.print("{s}", .{source});
 }
 
-test "simple test" {
-    var list = std.ArrayList(i32).init(std.testing.allocator);
-    defer list.deinit(); // try commenting this out and see if zig detects the memory leak!
-    try list.append(42);
-    try std.testing.expectEqual(@as(i32, 42), list.pop());
+fn runPrompt(allocator: std.mem.Allocator) !void {
+    const stdin_file = std.io.getStdIn();
+    var buffered_reader = std.io.bufferedReader(stdin_file.reader());
+    const stdin = buffered_reader.reader();
+
+    var line = std.ArrayList(u8).init(allocator);
+    defer line.deinit();
+
+    const writer = line.writer();
+
+    while (stdin.streamUntilDelimiter(writer, '\n', null)) {
+        defer line.clearRetainingCapacity();
+        run(line.items);
+    } else |err| switch (err) {
+        error.EndOfStream => {},
+        else => return err,
+    }
+}
+
+fn runFile(allocator: std.mem.Allocator, file: [:0]u8) !void {
+    var open_file = try fs.cwd().openFile(file, .{});
+    defer open_file.close();
+    const file_len = try open_file.getEndPos();
+
+    const buf = try allocator.alloc(u8, file_len);
+    defer allocator.free(buf);
+
+    _ = try open_file.readAll(buf);
+
+    run(buf);
+}
+
+pub fn main() !u8 {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    const allocator = gpa.allocator();
+    defer _ = gpa.deinit();
+
+    const args = try std.process.argsAlloc(allocator);
+    defer std.process.argsFree(allocator, args);
+    switch (args.len) {
+        1 => try runPrompt(allocator),
+        2 => try runFile(allocator, args[1]),
+        else => {
+            std.debug.print("Usage zig-lox [script]", .{});
+            return 64;
+        },
+    }
+    return 0;
 }
