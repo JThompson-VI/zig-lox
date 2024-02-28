@@ -5,6 +5,7 @@ pub fn dbg(comptime x: []const u8) void {
     std.debug.print(x, .{});
     std.debug.print("\n", .{});
 }
+
 var hadError = false;
 
 pub fn run(source: []const u8) void {
@@ -45,11 +46,11 @@ pub fn runFile(allocator: std.mem.Allocator, file: [:0]u8) !void {
     if (hadError) std.os.exit(65);
 }
 
-pub fn report(line: i32, where: []const u8, message: []const u8) !void {
+pub fn report(line: usize, where: []const u8, message: []const u8) !void {
     const stderr = std.io.getStdErr().writer();
     try stderr.print("[line {d}] Error {s}: {s}\n", .{ line, where, message });
     hadError = true;
 }
-pub fn print_error(line: i32, message: []const u8) !void {
+pub fn print_error(line: usize, message: []const u8) !void {
     try report(line, "", message);
 }
